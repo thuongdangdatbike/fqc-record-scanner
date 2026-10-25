@@ -1,211 +1,57 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FQC ERA - Quét QR</title>
-
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 16px;
-      font-family: Arial, sans-serif;
-      background: #f3f6fb;
-      color: #172033;
-    }
-    .card {
-      max-width: 520px;
-      margin: auto;
-      padding: 16px;
-      background: white;
-      border-radius: 16px;
-    }
-    h2 { margin-top: 0; }
-    #reader {
-      width: 100%;
-      margin-top: 12px;
-      overflow: hidden;
-      border-radius: 12px;
-    }
-    #status {
-      margin: 12px 0;
-      padding: 12px;
-      border-radius: 10px;
-      background: #eff6ff;
-      color: #1d4ed8;
-      overflow-wrap: anywhere;
-      line-height: 1.5;
-    }
-    #result {
-      overflow-wrap: anywhere;
-      font-weight: bold;
-      white-space: pre-wrap;
-    }
-    button {
-      width: 100%;
-      padding: 13px;
-      margin-top: 10px;
-      border: 0;
-      border-radius: 10px;
-      background: #2563eb;
-      color: white;
-      font-size: 16px;
-      font-weight: bold;
-    }
-    button:disabled { opacity: .5; }
-    .secondary { background: #475569; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>FQC ERA - Quét QR</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box}html,body{min-height:100%;}body{margin:0;padding:16px;font-family:Arial,sans-serif;background:#f3f6fb;color:#172033;-webkit-text-size-adjust:100%}.card{max-width:520px;margin:0 auto;background:white;border-radius:16px;padding:18px;box-shadow:0 2px 12px #0001}h1{font-size:20px;margin:0 0 8px}p{font-size:14px;line-height:1.5;color:#475569}#reader{display:block!important;width:100%!important;min-height:280px;margin:14px 0;overflow:hidden;border-radius:12px;background:#111;position:relative}#reader video{display:block!important;width:100%!important;max-width:100%!important;height:auto!important;min-height:260px;object-fit:cover;visibility:visible!important;opacity:1!important;background:#111}#reader__scan_region{display:block!important;width:100%!important;min-height:260px;background:#111}#reader__scan_region video{display:block!important;width:100%!important;visibility:visible!important;opacity:1!important}#reader__dashboard,#reader__status_span{font-size:12px}button{width:100%;padding:14px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:bold;font-size:16px;margin-top:8px}.secondary{background:#e2e8f0;color:#172033}.notice{padding:12px;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:14px;line-height:1.45;overflow-wrap:anywhere}.err{background:#fef2f2;color:#991b1b}.ok{background:#f0fdf4;color:#166534}button:disabled{opacity:.55}
+</style>
 </head>
-
-<body>
-  <div class="card">
-    <h2>FQC ERA - Quét QR</h2>
-    <div>Đưa toàn bộ mã QR vào vùng camera và giữ điện thoại ổn định.</div>
-
-    <div id="status">Đang chuẩn bị camera...</div>
-    <div id="reader"></div>
-
-    <h3>Nội dung QR đọc được</h3>
-    <div id="result">Chưa có mã QR.</div>
-
-    <button id="startBtn" onclick="startScanner()">Mở camera / Quét lại</button>
-    <button class="secondary" onclick="stopScanner()">Tắt camera</button>
-    <button id="sendBtn" onclick="sendAgain()" disabled>Gửi mã về FQC ERA</button>
-  </div>
-
-  <script>
-    let scanner = null;
-    let lastText = "";
-    let isStarting = false;
-    let isSending = false;
-
-    function setStatus(message) {
-      document.getElementById("status").textContent = message;
-    }
-
-    async function startScanner() {
-      if (isStarting || (scanner && scanner.isScanning)) return;
-
-      if (!window.Html5Qrcode) {
-        setStatus("Không tải được thư viện đọc QR. Kiểm tra kết nối Internet rồi tải lại trang.");
-        return;
-      }
-
-      isStarting = true;
-      document.getElementById("startBtn").disabled = true;
-      setStatus("Đang mở camera sau...");
-
-      try {
-        if (!scanner) {
-          scanner = new Html5Qrcode("reader", {
-            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-            verbose: false
-          });
-        }
-
-        const cameras = await Html5Qrcode.getCameras();
-        if (!cameras || cameras.length === 0) {
-          throw new Error("Không tìm thấy camera trên thiết bị.");
-        }
-
-        const backCamera =
-          cameras.find(c => /back|rear|environment|sau/i.test(c.label)) ||
-          cameras[cameras.length - 1];
-
-        await scanner.start(
-          backCamera.id,
-          {
-            fps: 15,
-            qrbox: function(viewWidth, viewHeight) {
-              const size = Math.floor(
-                Math.min(viewWidth * 0.85, viewHeight * 0.65, 420)
-              );
-              return { width: size, height: size };
-            },
-            aspectRatio: 1.0,
-            disableFlip: false
-          },
-          function(decodedText) {
-            handleDecoded(decodedText);
-          },
-          function() {
-            // Chưa đọc được QR ở khung hình này; tiếp tục thử.
-          }
-        );
-
-        setStatus("Camera đã mở. Đưa QR vào giữa khung hình, tránh lóa và giữ mã rõ nét.");
-      } catch (error) {
-        const message = error && error.message
-          ? error.message
-          : String(error);
-
-        setStatus("Không mở/đọc được camera: " + message +
-          ". Kiểm tra quyền camera và thử mở trang bằng Safari hoặc Chrome.");
-      } finally {
-        isStarting = false;
-        document.getElementById("startBtn").disabled = false;
-      }
-    }
-
-    function handleDecoded(decodedText) {
-      if (isSending || !decodedText) return;
-
-      isSending = true;
-      lastText = String(decodedText).trim();
-
-      document.getElementById("result").textContent = lastText;
-      document.getElementById("sendBtn").disabled = false;
-      setStatus("Đã đọc được QR. Đang gửi nội dung về FQC ERA...");
-
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({
-          type: "FQC_ERA_QR",
-          qr: lastText
-        }, "*");
-
-        setStatus("Đã đọc QR và gửi về FQC ERA. Kiểm tra cửa sổ FQC ERA.");
-      } else {
-        setStatus("Đã đọc QR nhưng không tìm thấy cửa sổ FQC ERA. Nhấn Gửi mã về FQC ERA nếu đã mở app.");
-      }
-
-      setTimeout(() => { isSending = false; }, 1500);
-    }
-
-    function sendAgain() {
-      if (!lastText) return;
-
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({
-          type: "FQC_ERA_QR",
-          qr: lastText
-        }, "*");
-
-        setStatus("Đã gửi lại mã QR về FQC ERA.");
-      } else {
-        setStatus("Không tìm thấy cửa sổ FQC ERA. Hãy mở camera từ nút trong app FQC ERA.");
-      }
-    }
-
-    async function stopScanner() {
-      if (!scanner || !scanner.isScanning) return;
-
-      try {
-        await scanner.stop();
-        setStatus("Đã tắt camera. Nhấn Mở camera / Quét lại để tiếp tục.");
-      } catch (error) {
-        setStatus("Không tắt được camera: " + error.message);
-      }
-    }
-
-    window.addEventListener("load", startScanner);
-    window.addEventListener("beforeunload", function() {
-      if (scanner && scanner.isScanning) {
-        scanner.stop().catch(function() {});
-      }
-    });
-  </script>
-</body>
-</html>
+<body><div class="card"><h1>FQC ERA — Quét QR</h1><p>Cho phép trình duyệt sử dụng camera. Khi đọc được mã, trang sẽ tự gửi mã về ứng dụng FQC ERA.</p><div id="status" class="notice">Đang chuẩn bị camera...</div><div id="reader"></div><button id="restart" class="secondary" onclick="startCamera()">Bật / quét lại</button><button class="secondary" onclick="window.close()">Đóng cửa sổ</button></div>
+<script>
+let scanner=null,starting=false,lastText='',lastAt=0,videoWatch=null;
+function msg(t,c=''){const e=document.getElementById('status');e.className='notice '+c;e.textContent=t;}
+function showVideo(){
+ const root=document.getElementById('reader');
+ const video=root&&root.querySelector('video');
+ if(!video)return false;
+ video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');
+ video.setAttribute('autoplay','');video.setAttribute('muted','');video.muted=true;video.autoplay=true;
+ video.style.cssText+=';display:block!important;width:100%!important;max-width:100%!important;height:auto!important;min-height:260px;object-fit:cover;visibility:visible!important;opacity:1!important;background:#111';
+ if(video.paused){const playResult=video.play();if(playResult&&playResult.catch)playResult.catch(()=>{});}
+ return true;
+}
+async function startCamera(){
+ if(starting)return;starting=true;document.getElementById('restart').disabled=true;msg('Đang khởi động camera sau của iPhone...');
+ try{
+  if(!window.isSecureContext)throw new Error('Trang camera không chạy trên HTTPS. Hãy mở bằng URL GitHub Pages bắt đầu bằng https://');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Safari không cho phép truy cập camera ở trang này. Hãy mở trực tiếp bằng Safari và kiểm tra quyền Camera.');
+  if(scanner){try{if(scanner.isScanning)await scanner.stop();await scanner.clear();}catch(e){}scanner=null;}
+  if(videoWatch){clearInterval(videoWatch);videoWatch=null;}
+  document.getElementById('reader').innerHTML='';
+  scanner=new Html5Qrcode('reader',{formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE],verbose:true});
+  await scanner.start({facingMode:{ideal:'environment'}},{fps:12,qrbox:function(w,h){const size=Math.floor(Math.min(w*0.86,h*0.65,420));return {width:Math.max(180,size),height:Math.max(180,size)};},aspectRatio:1.0,disableFlip:false},decoded=>{
+   const now=Date.now();if(decoded===lastText&&now-lastAt<2000)return;lastText=decoded;lastAt=now;
+   msg('Đã đọc mã QR. Đang gửi về FQC ERA...','ok');
+   try{if(scanner&&scanner.isScanning)scanner.stop().catch(()=>{});}catch(e){}
+   if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'FQC_ERA_QR',qr:String(decoded).trim()},'*');msg('Đã gửi mã về ứng dụng FQC ERA. Quay lại cửa sổ ứng dụng.','ok');}
+   else{msg('Đã đọc QR nhưng không tìm thấy cửa sổ FQC ERA. Hãy mở camera từ nút trong ứng dụng FQC ERA.','err');}
+  },()=>{});
+  // iOS Safari đôi khi cần gán lại thuộc tính video sau khi thư viện tạo phần tử video.
+  let attempts=0;
+  videoWatch=setInterval(()=>{
+   attempts++;
+   const visible=showVideo();
+   const video=document.querySelector('#reader video');
+   if(video&&video.videoWidth>0&&video.videoHeight>0){clearInterval(videoWatch);videoWatch=null;msg('Camera đã hiển thị. Đưa mã QR vào giữa khung hình.','ok');}
+   else if(attempts>=12){clearInterval(videoWatch);videoWatch=null;if(!visible)msg('Camera đã khởi động nhưng không tạo được khung hình video. Hãy đóng tab, mở lại trực tiếp bằng Safari và kiểm tra Cài đặt iPhone > Safari > Camera.','err');else msg('Video chưa phát hình. Kiểm tra quyền camera của Safari, đóng các ứng dụng đang dùng camera rồi nhấn Bật / quét lại.','err');}
+  },500);
+  setTimeout(showVideo,100);setTimeout(showVideo,500);
+ }catch(e){msg('Không mở/hiển thị được camera: '+(e&&e.message?e.message:String(e)),'err');}
+ finally{starting=false;document.getElementById('restart').disabled=false;}
+}
+window.addEventListener('load',startCamera);
+window.addEventListener('beforeunload',()=>{if(videoWatch)clearInterval(videoWatch);if(scanner&&scanner.isScanning)scanner.stop().catch(()=>{});});
+</script></body></html>
