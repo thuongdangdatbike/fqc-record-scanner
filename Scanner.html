@@ -1,14 +1,211 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FQC ERA - Quét QR</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<style>
-body{font-family:Arial,sans-serif;margin:0;background:#f3f6fb;color:#172033;padding:16px}.card{max-width:520px;margin:auto;background:#fff;border-radius:16px;padding:16px;border:1px solid #dbe2ea}h2{color:#172554;margin-top:0}button{width:100%;padding:13px;border:0;border-radius:10px;background:#2563eb;color:white;font-weight:700;font-size:16px;margin-top:12px}#reader{width:100%;margin-top:12px}.note{font-size:14px;color:#475569;line-height:1.5}
-</style></head><body><div class="card"><h2>FQC ERA · Quét QR</h2><p class="note">Cho phép camera khi trình duyệt hỏi. Quét xong, mã sẽ được gửi về FQC ERA.</p><div id="reader"></div><button onclick="start()">Bật camera</button><button onclick="closePage()" style="background:#e2e8f0;color:#172033">Đóng</button><p id="status" class="note"></p></div>
-<script>
-let scanner=null, busy=false;
-async function start(){if(busy)return;busy=true;document.getElementById('status').textContent='Đang mở camera...';try{if(!scanner)scanner=new Html5Qrcode('reader');await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:240}},async text=>{if(!text)return;document.getElementById('status').textContent='Đã đọc QR. Đang gửi về FQC ERA...';try{await scanner.stop();}catch(e){}if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'FQC_ERA_QR',qr:text},'*');document.getElementById('status').textContent='Đã gửi mã về FQC ERA. Có thể đóng trang này.';}else{document.getElementById('status').textContent='Không tìm thấy cửa sổ FQC ERA đang mở. Hãy mở lại camera từ FQC ERA.';}busy=false;},()=>{});document.getElementById('status').textContent='Đưa QR vào khung quét.';}catch(e){busy=false;document.getElementById('status').textContent='Không mở được camera: '+(e.message||e)+' . Mở bằng Safari/Chrome và cho phép camera.';}}
-function closePage(){if(scanner&&scanner.isScanning)scanner.stop().finally(()=>window.close());else window.close();}
-</script></body></html>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FQC ERA - Quét QR</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Arial, sans-serif;
+      background: #f3f6fb;
+      color: #172033;
+    }
+    .card {
+      max-width: 520px;
+      margin: auto;
+      padding: 16px;
+      background: white;
+      border-radius: 16px;
+    }
+    h2 { margin-top: 0; }
+    #reader {
+      width: 100%;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    #status {
+      margin: 12px 0;
+      padding: 12px;
+      border-radius: 10px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      overflow-wrap: anywhere;
+      line-height: 1.5;
+    }
+    #result {
+      overflow-wrap: anywhere;
+      font-weight: bold;
+      white-space: pre-wrap;
+    }
+    button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 10px;
+      border: 0;
+      border-radius: 10px;
+      background: #2563eb;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    button:disabled { opacity: .5; }
+    .secondary { background: #475569; }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h2>FQC ERA - Quét QR</h2>
+    <div>Đưa toàn bộ mã QR vào vùng camera và giữ điện thoại ổn định.</div>
+
+    <div id="status">Đang chuẩn bị camera...</div>
+    <div id="reader"></div>
+
+    <h3>Nội dung QR đọc được</h3>
+    <div id="result">Chưa có mã QR.</div>
+
+    <button id="startBtn" onclick="startScanner()">Mở camera / Quét lại</button>
+    <button class="secondary" onclick="stopScanner()">Tắt camera</button>
+    <button id="sendBtn" onclick="sendAgain()" disabled>Gửi mã về FQC ERA</button>
+  </div>
+
+  <script>
+    let scanner = null;
+    let lastText = "";
+    let isStarting = false;
+    let isSending = false;
+
+    function setStatus(message) {
+      document.getElementById("status").textContent = message;
+    }
+
+    async function startScanner() {
+      if (isStarting || (scanner && scanner.isScanning)) return;
+
+      if (!window.Html5Qrcode) {
+        setStatus("Không tải được thư viện đọc QR. Kiểm tra kết nối Internet rồi tải lại trang.");
+        return;
+      }
+
+      isStarting = true;
+      document.getElementById("startBtn").disabled = true;
+      setStatus("Đang mở camera sau...");
+
+      try {
+        if (!scanner) {
+          scanner = new Html5Qrcode("reader", {
+            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+            verbose: false
+          });
+        }
+
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras || cameras.length === 0) {
+          throw new Error("Không tìm thấy camera trên thiết bị.");
+        }
+
+        const backCamera =
+          cameras.find(c => /back|rear|environment|sau/i.test(c.label)) ||
+          cameras[cameras.length - 1];
+
+        await scanner.start(
+          backCamera.id,
+          {
+            fps: 15,
+            qrbox: function(viewWidth, viewHeight) {
+              const size = Math.floor(
+                Math.min(viewWidth * 0.85, viewHeight * 0.65, 420)
+              );
+              return { width: size, height: size };
+            },
+            aspectRatio: 1.0,
+            disableFlip: false
+          },
+          function(decodedText) {
+            handleDecoded(decodedText);
+          },
+          function() {
+            // Chưa đọc được QR ở khung hình này; tiếp tục thử.
+          }
+        );
+
+        setStatus("Camera đã mở. Đưa QR vào giữa khung hình, tránh lóa và giữ mã rõ nét.");
+      } catch (error) {
+        const message = error && error.message
+          ? error.message
+          : String(error);
+
+        setStatus("Không mở/đọc được camera: " + message +
+          ". Kiểm tra quyền camera và thử mở trang bằng Safari hoặc Chrome.");
+      } finally {
+        isStarting = false;
+        document.getElementById("startBtn").disabled = false;
+      }
+    }
+
+    function handleDecoded(decodedText) {
+      if (isSending || !decodedText) return;
+
+      isSending = true;
+      lastText = String(decodedText).trim();
+
+      document.getElementById("result").textContent = lastText;
+      document.getElementById("sendBtn").disabled = false;
+      setStatus("Đã đọc được QR. Đang gửi nội dung về FQC ERA...");
+
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: "FQC_ERA_QR",
+          qr: lastText
+        }, "*");
+
+        setStatus("Đã đọc QR và gửi về FQC ERA. Kiểm tra cửa sổ FQC ERA.");
+      } else {
+        setStatus("Đã đọc QR nhưng không tìm thấy cửa sổ FQC ERA. Nhấn Gửi mã về FQC ERA nếu đã mở app.");
+      }
+
+      setTimeout(() => { isSending = false; }, 1500);
+    }
+
+    function sendAgain() {
+      if (!lastText) return;
+
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: "FQC_ERA_QR",
+          qr: lastText
+        }, "*");
+
+        setStatus("Đã gửi lại mã QR về FQC ERA.");
+      } else {
+        setStatus("Không tìm thấy cửa sổ FQC ERA. Hãy mở camera từ nút trong app FQC ERA.");
+      }
+    }
+
+    async function stopScanner() {
+      if (!scanner || !scanner.isScanning) return;
+
+      try {
+        await scanner.stop();
+        setStatus("Đã tắt camera. Nhấn Mở camera / Quét lại để tiếp tục.");
+      } catch (error) {
+        setStatus("Không tắt được camera: " + error.message);
+      }
+    }
+
+    window.addEventListener("load", startScanner);
+    window.addEventListener("beforeunload", function() {
+      if (scanner && scanner.isScanning) {
+        scanner.stop().catch(function() {});
+      }
+    });
+  </script>
+</body>
+</html>
