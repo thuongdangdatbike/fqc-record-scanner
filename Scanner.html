@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FQC ERA - Quét QR</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f3f6fb;color:#172033;padding:16px}.card{max-width:520px;margin:auto;background:#fff;border-radius:16px;padding:16px;border:1px solid #dbe2ea}h2{color:#172554;margin-top:0}button{width:100%;padding:13px;border:0;border-radius:10px;background:#2563eb;color:white;font-weight:700;font-size:16px;margin-top:12px}#reader{width:100%;margin-top:12px}.note{font-size:14px;color:#475569;line-height:1.5}
+</style></head><body><div class="card"><h2>FQC ERA · Quét QR</h2><p class="note">Cho phép camera khi trình duyệt hỏi. Quét xong, mã sẽ được gửi về FQC ERA.</p><div id="reader"></div><button onclick="start()">Bật camera</button><button onclick="closePage()" style="background:#e2e8f0;color:#172033">Đóng</button><p id="status" class="note"></p></div>
+<script>
+let scanner=null, busy=false;
+async function start(){if(busy)return;busy=true;document.getElementById('status').textContent='Đang mở camera...';try{if(!scanner)scanner=new Html5Qrcode('reader');await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:240}},async text=>{if(!text)return;document.getElementById('status').textContent='Đã đọc QR. Đang gửi về FQC ERA...';try{await scanner.stop();}catch(e){}if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'FQC_ERA_QR',qr:text},'*');document.getElementById('status').textContent='Đã gửi mã về FQC ERA. Có thể đóng trang này.';}else{document.getElementById('status').textContent='Không tìm thấy cửa sổ FQC ERA đang mở. Hãy mở lại camera từ FQC ERA.';}busy=false;},()=>{});document.getElementById('status').textContent='Đưa QR vào khung quét.';}catch(e){busy=false;document.getElementById('status').textContent='Không mở được camera: '+(e.message||e)+' . Mở bằng Safari/Chrome và cho phép camera.';}}
+function closePage(){if(scanner&&scanner.isScanning)scanner.stop().finally(()=>window.close());else window.close();}
+</script></body></html>
